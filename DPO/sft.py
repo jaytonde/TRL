@@ -9,8 +9,11 @@ from transformers import (
 )
 
 from datasets import load_dataset
-
 from peft import AutoPeftModelForCausalLM
+
+
+
+
 
 def chars_token_ratio(dataset, tokenizer, nb_examples=400):
     """
@@ -26,7 +29,6 @@ def chars_token_ratio(dataset, tokenizer, nb_examples=400):
             total_tokens += len(tokenizer.tokenize(text))
 
     return total_characters / total_tokens
-
 
 def create_datasets(tokenizer, configs, seed=None):
     dataset = load_dataset(
@@ -54,37 +56,35 @@ def create_datasets(tokenizer, configs, seed=None):
     train_dataset = ConstantLengthDataset(
         tokenizer,
         train_data,
-        formatting_func=prepare_sample_text,
-        infinite=True,
-        seq_length=configs.seq_length,
-        chars_per_token=chars_per_token,
+        formatting_func  = prepare_sample_text,
+        infinite         = True,
+        seq_length       = configs.seq_length,
+        chars_per_token  = chars_per_token,
     )
     valid_dataset = ConstantLengthDataset(
         tokenizer,
         valid_data,
-        formatting_func=prepare_sample_text,
-        infinite=False,
-        seq_length=configs.seq_length,
-        chars_per_token=chars_per_token,
+        formatting_func  = prepare_sample_text,
+        infinite         = False,
+        seq_length       = configs.seq_length,
+        chars_per_token  = chars_per_token,
     )
     return train_dataset, valid_dataset
 
-
-
-def main():
+def main(configs):
 
     ################################Load Model###############################
-    bnb_config = None
-    if config.use_bnb:
-        bnb_config = BitsAndBytesConfig{
+    bnb_configs = None
+    if configs.use_bnb:
+        bnb_configs = BitsAndBytesConfig{
             load_in_4bit = True,
             bnb_4bit_quant_type = "nf4",
             bnb_4bit_compute_dtype= torch.bfloat16,
         }
 
     model = AutoPeftModelForCausalLM.from_pretrained(
-        config.model_name,
-        quantization_config  = bnb_config,
+        configs.model_name,
+        quantization_config  = bnb_configs,
         device_map           = {"": Accerelator().local_process_index},
         trust_remote_code    = True,
         use_auth_token       = True
@@ -93,7 +93,7 @@ def main():
 
     #############################Set Tokenizer################################
     
-    tokenizer              = AutoTokenizer.from_pretrained(config.model_name, trust_remote_code=True)
+    tokenizer              = AutoTokenizer.from_pretrained(configs.model_name, trust_remote_code=True)
     tokenizer.pad_token    = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
@@ -101,6 +101,42 @@ def main():
     
     train_dataset, eval_dataset = create_datasets(tokenizer, configs, seed=configs.seed)
 
+    ###############################Train model################################
+    trainer = SFTTrainer(
+                            model            = model,
+                            train_dataset    = train_dataset,
+                            eval_dataset     = eval_dataset,
+                            peft_config      = peft_config,
+                            max_length       = None,
+                            formatting_func  = prepare_sample_text,
+                            processing_class = tokenizer,
+                            args             = training_args,
+                        )
+    trainer.train()
+    trainer.save_model(training_args.output_dir) #This saves only lora trained adapter.
+
+    output_dir = ps.path.join(training_args.output_dir, "final_checkpoint")
+    trainer.model.save_pretrained(output_dir)    #This save whole model weights.
+
+    #############################Merge Adaptor and Model##########################
+    model = AutoPeftModelForCausalLM.from_pretrained(output_dir, device_map="auto", torch_dtype=torch.bfloat16)
+    model = model.merge_and_unload()
+
+    output_merged_dir = os.path.join(training_args.output_dir, "final_merged_checkpoint")
+    model.save_pretrained(output_merged_dir, safe_serialization=True)
+
+class Config:
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
+        self.entries=entries
+    def print(self):
+        print(self.entries)
+
 
 if __nam__=="__main__":
-    main()
+
+    with open(r"configs.yaml") as f:
+        configs = yaml.safe_load(f)
+    configs = Config(**configs)
+
+    main(configs)
