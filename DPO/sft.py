@@ -12,9 +12,6 @@ from datasets import load_dataset
 from peft import AutoPeftModelForCausalLM
 
 
-
-
-
 def chars_token_ratio(dataset, tokenizer, nb_examples=400):
     """
     Estimate the average number of characters per token in the dataset.
@@ -73,7 +70,6 @@ def create_datasets(tokenizer, configs, seed=None):
 
 def main(configs):
 
-    ################################Load Model###############################
     bnb_configs = None
     if configs.use_bnb:
         bnb_configs = BitsAndBytesConfig{
@@ -91,17 +87,17 @@ def main(configs):
     )
     model.config.use_cache = False  #Turning of the KVcaching
 
-    #############################Set Tokenizer################################
+
     
     tokenizer              = AutoTokenizer.from_pretrained(configs.model_name, trust_remote_code=True)
     tokenizer.pad_token    = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
-    #############################Dataset Preparation##########################
+
     
     train_dataset, eval_dataset = create_datasets(tokenizer, configs, seed=configs.seed)
 
-    ###############################Train model################################
+
     trainer = SFTTrainer(
                             model            = model,
                             train_dataset    = train_dataset,
@@ -118,7 +114,7 @@ def main(configs):
     output_dir = ps.path.join(training_args.output_dir, "final_checkpoint")
     trainer.model.save_pretrained(output_dir)    #This save whole model weights.
 
-    #############################Merge Adaptor and Model##########################
+
     model = AutoPeftModelForCausalLM.from_pretrained(output_dir, device_map="auto", torch_dtype=torch.bfloat16)
     model = model.merge_and_unload()
 
@@ -131,7 +127,6 @@ class Config:
         self.entries=entries
     def print(self):
         print(self.entries)
-
 
 if __nam__=="__main__":
 
