@@ -6,8 +6,8 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig,
     HfArgumentParser,
-    is_torch_xpu_available,
-    is_torch_npu_available
+    is_torch_xpu_available, # This function checks if Intel's XPU (eXtensible Processing Unit) backend is available and properly configured for PyTorch.
+    is_torch_npu_available  # This function checks if Huawei's NPU (Neural Processing Unit) backend is available and properly configured for PyTorch.
 )
 
 from datasets import load_dataset
