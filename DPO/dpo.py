@@ -90,6 +90,28 @@ def main(configs):
 
     model.config.use_cache = False
 
+    tokenizer = AutoTokenizer.from_pretrained(configs.model_name_or_path)
+    tokenizer.pad_token = tokenizer.eos_token
+
+    train_dataset = get_stack_exchange_paired(configs.train_data_dir)
+    train_dataset = train_dataset.filter(
+        lambda x: len(x["prompt"]) + len(x["chosen"]) <= configs.max_length
+        and
+        len(x["prompt"]) + len(x["chosen"]) <= configs.max_length,
+        num_proc = configs.num_proc
+    )
+
+    eval_dataset = get_stack_exchange_paired(configs.eval_data_dir)
+    eval_dataset = eval_dataset.filter(
+        lambda x: len(x["prompt"]) + len(x["chosen"]) <= configs.max_length
+        and
+        len(x["prompt"]) + len(x["chosen"]) <= configs.max_length,
+        num_proc = configs.num_proc
+    )
+
+
+    
+
 
     training_args = get_training_args(configs)
 
