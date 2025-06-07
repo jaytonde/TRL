@@ -13,6 +13,12 @@ from transformers import (
 from datasets import load_dataset
 from peft import AutoPeftModelForCausalLM
 
+class Config:
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
+        self.entries=entries
+    def print(self):
+        print(self.entries)
 
 def chars_token_ratio(dataset, tokenizer, nb_examples=400):
     """
@@ -131,16 +137,9 @@ def main(configs):
     output_merged_dir = os.path.join(training_args.output_dir, "final_merged_checkpoint")
     model.save_pretrained(output_merged_dir, safe_serialization=True)
 
-class Config:
-    def __init__(self, **entries):
-        self.__dict__.update(entries)
-        self.entries=entries
-    def print(self):
-        print(self.entries)
-
 if __nam__=="__main__":
 
-    with open(r"configs.yaml") as f:
+    with open(r"configs_sft.yaml") as f:
         configs = yaml.safe_load(f)
     configs = Config(**configs)
 
