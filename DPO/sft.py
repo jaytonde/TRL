@@ -5,7 +5,9 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
-    HfArgumentParser
+    HfArgumentParser,
+    is_torch_xpu_available,
+    is_torch_npu_available
 )
 
 from datasets import load_dataset
@@ -113,6 +115,14 @@ def main(configs):
 
     output_dir = ps.path.join(training_args.output_dir, "final_checkpoint")
     trainer.model.save_pretrained(output_dir)    #This save whole model weights.
+
+    del model
+    if is_torch_xpu_available():
+        torch.xpu.empty_cache()
+    elif is_torch_npu_available():
+        torch.npu.empty_cache()
+    else:
+        torch.cuda.empty_cache()
 
 
     model = AutoPeftModelForCausalLM.from_pretrained(output_dir, device_map="auto", torch_dtype=torch.bfloat16)
