@@ -1,5 +1,6 @@
 import os
 import torch
+import logging
 
 from transformers import (
     AutoModelForCausalLM,
@@ -35,7 +36,7 @@ def chars_token_ratio(dataset, tokenizer, nb_examples=400):
 
     return total_characters / total_tokens
 
-def create_datasets(tokenizer, configs, seed=None):
+def create_datasets(logger, tokenizer, configs, seed=None):
     dataset = load_dataset(
         configs.dataset_name,
         data_dir        = configs.subset,
@@ -45,7 +46,7 @@ def create_datasets(tokenizer, configs, seed=None):
         streaming       = configs.streaming,
     )
     if configs.streaming:
-        print("Loading the dataset in streaming mode")
+        logger.info("Loading the dataset in streaming mode")
         valid_data = dataset.take(configs.size_valid_set)
         train_data = dataset.skip(configs.size_valid_set)
         train_data = train_data.shuffle(buffer_size=configs.shuffle_buffer, seed=seed)
@@ -53,7 +54,7 @@ def create_datasets(tokenizer, configs, seed=None):
         dataset    = dataset.train_test_split(test_size=0.005, seed=seed)
         train_data = dataset["train"]
         valid_data = dataset["test"]
-        print(f"Size of the train set: {len(train_data)}. Size of the validation set: {len(valid_data)}")
+        logger.info(f"Size of the train set: {len(train_data)}. Size of the validation set: {len(valid_data)}")
 
     chars_per_token = chars_token_ratio(train_data, tokenizer)
     print(f"The character to token ratio of the dataset is: {chars_per_token:.2f}")
@@ -76,8 +77,9 @@ def create_datasets(tokenizer, configs, seed=None):
     )
     return train_dataset, valid_dataset
 
-def main(configs):
+def main(logger, configs):
 
+    logger.info("Setting BNB configs for model.")
     bnb_configs = None
     if configs.use_bnb:
         bnb_configs = BitsAndBytesConfig{
@@ -85,7 +87,9 @@ def main(configs):
             bnb_4bit_quant_type = "nf4",
             bnb_4bit_compute_dtype= torch.bfloat16,
         }
+    logger.info("BNB configs Set up completed.")
 
+    logger.info("Loading base model for SFT.")
     model = AutoPeftModelForCausalLM.from_pretrained(
         configs.model_name,
         quantization_config  = bnb_configs,
@@ -94,18 +98,20 @@ def main(configs):
         use_auth_token       = True
     )
     model.config.use_cache = False  #Turning of the KVcaching
+    logger.info("Model loaded successfully.")
 
 
-    
+    logger.info("Setting up the tokenizer.")
     tokenizer              = AutoTokenizer.from_pretrained(configs.model_name, trust_remote_code=True)
     tokenizer.pad_token    = tokenizer.eos_token
     tokenizer.padding_side = "right"
+    logger.info("Tokenizer setting completed.")
 
+    logger.info("Loading the dataset train and eval set.")
+    train_dataset, eval_dataset = create_datasets(logger, tokenizer, configs, seed=configs.seed)
+    logger.info("Dataset loaded successfully.")
 
-    
-    train_dataset, eval_dataset = create_datasets(tokenizer, configs, seed=configs.seed)
-
-
+    logger.info("Model training started.")
     trainer = SFTTrainer(
                             model            = model,
                             train_dataset    = train_dataset,
@@ -118,9 +124,12 @@ def main(configs):
                         )
     trainer.train()
     trainer.save_model(training_args.output_dir) #This saves only lora trained adapter.
+    logger.info("Model training completed and adapter weights saved successfully.")
 
+    logger.info("Saving whole model weights for later use.")
     output_dir = ps.path.join(training_args.output_dir, "final_checkpoint")
     trainer.model.save_pretrained(output_dir)    #This save whole model weights.
+    logger.info("Model weights saved successfully.")
 
     del model
     if is_torch_xpu_available():
@@ -131,16 +140,25 @@ def main(configs):
         torch.cuda.empty_cache()
 
 
+    logger.info("Merging base model with adapter.")
     model = AutoPeftModelForCausalLM.from_pretrained(output_dir, device_map="auto", torch_dtype=torch.bfloat16)
     model = model.merge_and_unload()
 
     output_merged_dir = os.path.join(training_args.output_dir, "final_merged_checkpoint")
     model.save_pretrained(output_merged_dir, safe_serialization=True)
+    logger.info("Merge and saved successfylly for direct inference.")
 
-if __nam__=="__main__":
+if __name__=="__main__":
 
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    logger.info("Loading configurations from .yaml file")
     with open(r"configs_sft.yaml") as f:
         configs = yaml.safe_load(f)
     configs = Config(**configs)
+    logger.info("Loaded configurations successfully.")
+    logger.info(f"SFT train configs : {configs}")
 
-    main(configs)
+    main(logger, configs)
+    logger.info("Model training completed successfully....")
