@@ -1,0 +1,1 @@
+This folder contrains the DPO code for tuning LLM on stackoverflow data. Original example link here : ([Original code](https://github.com/huggingface/trl/tree/main/examples/research_projects/stack_llama_2/scripts)). Updated the code for proper logging and made it configurable.
