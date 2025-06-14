@@ -2,6 +2,7 @@ This folder contrains the DPO code for tuning LLM on stackoverflow data. Origina
 
 ## 1) SFT
 #### 1.1) Model Details
+Model name : Qwen2.0_0.5B
 #### 1.2) Training Insights
 ##### 1.2.1) Training logs
 {'loss': 2.2277, 'grad_norm': 0.3126915991306305, 'learning_rate': 1.501e-05, 'num_tokens': 4096000.0, 'mean_token_accuracy': 0.5384662748575211, 'epoch': 0.0}
