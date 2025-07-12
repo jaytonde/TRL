@@ -1,0 +1,41 @@
+model_name_or_path : "sft_model_output/final_merged_checkpoint"
+tokenizer_path     : "models/qwen2.5_3B"
+dataset_name       : "lvwerra/stack-exchange-paired"
+split              : "train[:16000]"
+max_length         : 1024
+eval_data_dir      : 'data/evaluation'
+model_dtype        : 'bfloat16'
+use_bnb            : True
+num_proc           : 24
+hf_token           : ""
+
+# SFT Configs
+num_train_epochs            : 1  
+per_device_train_batch_size : 4
+per_device_eval_batch_size  : 4 
+eval_strategy               : "epoch"
+max_steps                   : 1
+logging_steps               : 10
+#gradient_accumulation_steps : 4 
+#gradient_checkpointing      : True 
+learning_rate               : 0.00002
+output_dir                  : "./DPO_EXP_03"
+report_to                   : "mlflow"   
+bf16                        : True
+
+
+# PEFT parameters
+lora_r         : 8
+lora_alpha     : 16
+lora_dropout   : 0.05
+target_modules : [
+                    "q_proj",
+                    "v_proj",
+                    "k_proj",
+                    "out_proj",
+                    "fc_in",
+                    "fc_out",
+                    "wte",
+                 ]
+bias           : "none"
+task_type      : "CAUSAL_LM"
