@@ -1,7 +1,3 @@
-Here's a `README.md` file in Markdown format for your DPO pipeline repository:
-
------
-
 # DPO Pipeline for Large Language Models
 
 This repository contains code for fine-tuning a Large Language Model (LLM) using Supervised Fine-Tuning (SFT) and then further aligning it with human preferences using Direct Preference Optimization (DPO).
